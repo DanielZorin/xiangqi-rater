@@ -15,4 +15,6 @@ class Tournament(object):
         '''
         Constructor
         '''
-        pass
+        self.games = games
+        self.date = date
+        self.name = name

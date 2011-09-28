@@ -58,12 +58,35 @@ class Database(object):
                         date = tournament.getAttribute("date")
                         name = tournament.getAttribute("name")
                         t = Tournament(games, date, name)
+                        self.tournaments.append(t)
         f.close()
         
     def ComputeRating(self):
-        pass
+        for t in self.tournaments:
+            currentPlayers = {}
+            for g in t.games:
+                if not g.red in currentPlayers:
+                    currentPlayers[g.red] = (g.result, [g.black])
+                else:
+                    tmp = currentPlayers[g.red]
+                    currentPlayers[g.red] = (tmp[0] + g.result, tmp[1] + [g.black])
+                if not g.black in currentPlayers:
+                    currentPlayers[g.black] = (1 - g.result, [g.red])
+                else:
+                    tmp = currentPlayers[g.black]
+                    currentPlayers[g.black] = (tmp[0] + 1 - g.result, tmp[1] + [g.red])
+            newRating = {}
+            for p in currentPlayers.keys():
+                expScore = sum(1/(1+10**((p.rating - other.rating)/400)) for other in currentPlayers[p][1])
+                realScore = currentPlayers[p][0]
+                dif = realScore - expScore
+                new = p.rating + 10 * dif
+                newRating[p] = new
+            for p in newRating:
+                p.rating = newRating[p]
         
 db = Database()
 db.loadFromXml("tournaments.xml")
+db.ComputeRating()
 for p in db.players:
     print(p.name, p.rating)
