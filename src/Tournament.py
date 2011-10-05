@@ -17,4 +17,6 @@ class Tournament(object):
         '''
         self.games = games
         self.date = date
+        tmp = date.split(".")
+        self.year = int(tmp[2])
         self.name = name

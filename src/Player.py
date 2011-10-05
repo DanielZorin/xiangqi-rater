@@ -11,7 +11,9 @@ class Player(object):
     name = ""
     
     # default rating
-    rating = 1200
+    rating = 1500
+    
+    foreign = False
 
     def __init__(self, name):
         '''
