@@ -11,7 +11,7 @@ class Player(object):
     name = ""
     
     # default rating
-    rating = 1500
+    rating = 1400
     
     foreign = False
 
@@ -20,3 +20,6 @@ class Player(object):
         Constructor
         '''
         self.name = name
+        
+    def __str__(self):
+        return self.name + " " + self.rating
