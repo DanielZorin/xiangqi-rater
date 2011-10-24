@@ -11,7 +11,7 @@ class Player(object):
     name = ""
     
     # default rating
-    rating = 1400
+    rating = 1600
     
     foreign = False
 
@@ -22,4 +22,7 @@ class Player(object):
         self.name = name
         
     def __str__(self):
-        return self.name + " " + self.rating
+        return self.name + " " + str(self.rating)
+    
+    def shortName(self):
+        return self.name[self.name.find(" ") + 1:] + " " + self.name[0]

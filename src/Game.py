@@ -15,6 +15,14 @@ class Game:
     
     def setTournament(self, t):
         self.tournament = t
+
+    def winner(self):
+        if self.result == 1:
+            return self.red
+        elif self.result == 0:
+            return self.black
+        else:
+            return None
         
     def __str__(self):
         res = "1-0" if self.result == 1 else "0.5-0.5" if self.result == 0.5 else "0-1"

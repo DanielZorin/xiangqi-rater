@@ -7,13 +7,13 @@ Created on 28.09.2011
 from Tournament import Tournament
 from Game import Game
 from Player import Player
-import xml.dom.minidom
+import xml.dom.minidom, math
 
 class Database(object):
     
-    k = 25
+    k = 15
     
-    defaultrating = 1400
+    defaultrating = 1600
 
     def __init__(self):
         '''
@@ -70,7 +70,13 @@ class Database(object):
                                 games.append(g)                              
                         date = tournament.getAttribute("date")
                         name = tournament.getAttribute("name")
+                        rated = tournament.getAttribute("rated")
+                        if not rated or rated == "True":
+                            rated = True
+                        else:
+                            rated = False
                         t = Tournament(games, date, name)
+                        t.rated = rated
                         for g in t.games:
                             g.setTournament(t)
                         self.tournaments.append(t)
@@ -101,35 +107,44 @@ class Database(object):
                     win += 1
                 else:
                     lose += 1
-        print(p1.name, p2.name, win, draw, lose)
+        #print(p1.name, p2.name, win, draw, lose)
+        return (p1.name, p2.name, win, draw, lose)
 
     def PrintStats(self, cutoff):
         tmp = sorted(self.players, key=lambda x: -x.rating)
         tmp = [p for p in tmp if not p.foreign]
         for p1 in tmp[:cutoff]:
+            todo = []
             for p2 in tmp[:cutoff]:
                 if p1 != p2:
-                    self.PrintPairStats(p1, p2)   
+                    res = self.PrintPairStats(p1, p2)
+                    todo.append(res)
+            st = p1.shortName()
+            for t in todo:
+                st += "\t+%d =%d -%d" % (t[2], t[3], t[4])
+            print(st)
+                
     
     def PrintTotalStats(self):
         for p in self.players:
-            win = 0
-            lose = 0
-            draw = 0
-            for g in self.FindGames(p):
-                if g.result == 0.5:
-                    draw += 1
-                if g.result == 1:
-                    if g.red == p:
-                        win += 1
-                    else:
-                        lose += 1
-                if g.result == 0:
-                    if g.black == p:
-                        win += 1
-                    else:
-                        lose += 1
-            print(p.name, win, draw, lose, win + draw + lose)        
+            if not p.foreign:
+                win = 0
+                lose = 0
+                draw = 0
+                for g in self.FindGames(p):
+                    if g.result == 0.5:
+                        draw += 1
+                    if g.result == 1:
+                        if g.red == p:
+                            win += 1
+                        else:
+                            lose += 1
+                    if g.result == 0:
+                        if g.black == p:
+                            win += 1
+                        else:
+                            lose += 1
+                print("%s\t%d\t+%d =%d -%d " % (p.shortName(), win + draw + lose, win, draw, lose))        
  
     def CorrectRating(self):
         m = 0
@@ -140,13 +155,28 @@ class Database(object):
         for p in self.players:
             m1 = len(self.FindGames(p))
             if m1 < 30:
-                p.rating = self.defaultrating + (p.rating - self.defaultrating) * (m1 / m)
+                p.rating = self.defaultrating + 5 * (p.rating - self.defaultrating) * (m1 / m)
+                
+    def CorrectRatingPlus(self):
+        total = sum([len(t.games) for t in self.tournaments])
+        total = total / len(self.players)
+        for p in self.players:
+            p.rating = self.defaultrating + (p.rating - self.defaultrating) * (min(5, len(self.FindGames(p)) - total) / total)
+
+    def CorrectRatingMinus(self):
+        for p in self.players:
+            m1 = len(self.FindGames(p))
+            if m1 < 25:
+                p.rating = p.rating - 50
         
     def ComputeRating(self):
         year = self.tournaments[0].year
+        self.ratings = {}
+        for p in self.players:
+            self.ratings[p] = []
         while True:
-            tourn = [x for x in self.tournaments if x.year == year]
-            if tourn == []:
+            tourn = [x for x in self.tournaments if (x.year == year) and x.rated]
+            if tourn == [] or year == 2011:
                 return
             currentPlayers = {}
             for t in tourn:
@@ -170,14 +200,20 @@ class Database(object):
                 realScore = currentPlayers[p][0]
                 dif = realScore - expScore
                 new = p.rating + self.k * dif
-                #if p.name == "Даниил Зорин":
-                #    print(year, expScore, realScore, "/", len(currentPlayers[p][1]), p.rating, new, new-p.rating)
-                if not p.foreign:
-                    print(p.name, year, expScore, realScore, "/", len(currentPlayers[p][1]), p.rating, new, new-p.rating)
+                if p.name == "Даниил Зорин":
+                    print(year, expScore, realScore, "/", len(currentPlayers[p][1]), p.rating, new, new-p.rating)
+                #if not p.foreign:
+                #    print(p.name, year, expScore, realScore, "/", len(currentPlayers[p][1]), p.rating, new, new-p.rating)
                 newRating[p] = new
             for p in newRating:
                 p.rating = newRating[p]
             year += 1
+            for p in self.players:
+                rat = int(p.rating + 0.5)
+                m1 = len([g for g in self.FindGames(p) if g.tournament.year <= year ])
+                if m1 < 25:
+                    rat = rat - 50
+                self.ratings[p].append(rat)
             
     def ComputeRatingTournaments(self):
         for t in self.tournaments:
@@ -210,14 +246,30 @@ class Database(object):
             for p in newRating:
                 p.rating = newRating[p]
 
+
 db = Database()
 db.loadFromXml("tournaments.xml")
+'''for t in db.tournaments:
+    t.findPlaces()
+    for p in t.places:
+        if p[1].name == "Даниил Зорин":
+            pass
+            print(t.name, p[0], p[2])'''
 db.ComputeRating()
-db.CorrectRating()
+#db.CorrectRating()
+db.CorrectRatingMinus()
 tmp = sorted(db.players, key=lambda x: -x.rating)
 tmp = [p for p in tmp if not p.foreign]
+me = None
+mm = 1
+pos = 0
 for p in tmp:
     print(p.name, int(p.rating + 0.5))
 cutoff = 5
+for p in tmp:
+    st = p.name[p.name.find(" ") + 1:] + " " + p.name[0]
+    for r in db.ratings[p]:
+        st += "\t" + str(r)
+    print(st)
 #db.PrintTotalStats()
 #db.PrintStats(cutoff)
