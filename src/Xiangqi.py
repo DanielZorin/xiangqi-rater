@@ -121,6 +121,12 @@ class Board:
                       [0, -6, 0, 0, 0, 0, 0, -6, 0],
                       [0, 0, 0, 0, 0, 0, 0, 0, 0],
                       [-5, -4, -3, -2, -1, -2, -3, -4, -5]]
+        self.pieces = {}
+        for i in range(10):
+            for j in range(9):
+                p = self.board[i][j]
+                if p != Piece.Empty:
+                    self.pieces[(i, j)] = p
         '''self.board = [
                       [0, 0, 0, 0, 1, 0, 0, 0, 0],
                       [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -223,8 +229,12 @@ class Board:
         return True
     
     def movePiece(self, src, dst):
-        self.board[dst.y-1][dst.x-1] = self.getPiece(src)
+        p = self.getPiece(src)
+        self.board[dst.y-1][dst.x-1] = p
         self.board[src.y-1][src.x-1] = Piece.Empty
+        del self.pieces[(src.y-1, src.x-1)]
+        pos = (dst.y-1, dst.x-1)
+        self.pieces[pos] = p
         
     def printMove(self, move):
         print(Piece.toString(abs(self.getPiece(move.src))) + str(move.src) + "-" + str(move.dst))
@@ -272,21 +282,20 @@ class Board:
         return res    
     def getAllMoves(self, color):
         res = []
-        for i in range(10):
-            for j in range(9):
-                if self.board[i][j] != 0:
-                    piece = self.board[i][j]
-                    src = Position(j + 1, i + 1)
-                    for pos in self.getPositions(src, abs(piece)):
-                        try:
-                            dst = pos
-                            col = piece/abs(piece)
-                            if col == color:
-                                #print("trying ", src, dst)
-                                self.tryMovePiece(col, src, dst)
-                                res.append(Move(col, src, dst))
-                        except:
-                            pass
+        for k in self.pieces.keys():
+            piece = self.pieces[k]
+            src = Position(k[1] + 1, k[0] + 1)
+            apiece = abs(piece)
+            for pos in self.getPositions(src, apiece):
+                try:
+                    dst = pos
+                    col = piece/apiece
+                    if col == color:
+                        #print("trying ", src, dst)
+                        self.tryMovePiece(col, src, dst)
+                        res.append(Move(col, src, dst))
+                except:
+                    pass
         return res
 
     def _getNewBoard(self, src, dst):
@@ -294,6 +303,8 @@ class Board:
         for i in range(10):
             for j in range(9):
                 newb.board[i][j] = self.board[i][j]
+        for k in self.pieces.keys():
+            newb.pieces[k] = self.pieces[k]
         newb.movePiece(src, dst)
         return newb
     
@@ -385,9 +396,10 @@ class AI:
             for j in range(9):
                 piece = pos.board[i][j]
                 if piece != Piece.Empty:
-                    color = piece / abs(piece)
-                    if abs(pos.board[i][j]) != Piece.Pawn:
-                        val += AI.strength[abs(piece)] * color
+                    apiece = abs(piece)
+                    color = piece / apiece
+                    if apiece != Piece.Pawn:
+                        val += AI.strength[apiece] * color
                     else:
                         p = Position(j + 1, i + 1)
                         if p.onSide(color):

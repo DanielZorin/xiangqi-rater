@@ -176,7 +176,7 @@ class Database(object):
             self.ratings[p] = []
         while True:
             tourn = [x for x in self.tournaments if (x.year == year) and x.rated]
-            if tourn == [] or year == 2011:
+            if tourn == []:
                 return
             currentPlayers = {}
             for t in tourn:
@@ -216,6 +216,9 @@ class Database(object):
                 self.ratings[p].append(rat)
             
     def ComputeRatingTournaments(self):
+        self.ratings = {}
+        for p in self.players:
+            self.ratings[p] = []
         for t in self.tournaments:
             currentPlayers = {}
             for g in t.games:
@@ -245,6 +248,12 @@ class Database(object):
                 newRating[p] = new
             for p in newRating:
                 p.rating = newRating[p]
+            for p in self.players:
+                rat = int(p.rating + 0.5)
+                m1 = len([g for g in self.FindGames(p)])
+                if m1 < 25:
+                    rat = rat - 50
+                self.ratings[p].append(rat)
 
 
 db = Database()
@@ -266,10 +275,11 @@ pos = 0
 for p in tmp:
     print(p.name, int(p.rating + 0.5))
 cutoff = 5
-for p in tmp:
+print (len([g for t in db.tournaments for g in t.games]))
+'''for p in tmp:
     st = p.name[p.name.find(" ") + 1:] + " " + p.name[0]
     for r in db.ratings[p]:
         st += "\t" + str(r)
-    print(st)
+    print(st)'''
 #db.PrintTotalStats()
 #db.PrintStats(cutoff)
