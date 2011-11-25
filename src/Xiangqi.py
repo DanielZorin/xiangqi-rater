@@ -289,7 +289,7 @@ class Board:
             for pos in self.getPositions(src, apiece):
                 try:
                     dst = pos
-                    col = piece/apiece
+                    col = Color.Red if piece > 0 else Color.Black
                     if col == color:
                         #print("trying ", src, dst)
                         self.tryMovePiece(col, src, dst)
@@ -374,7 +374,7 @@ class XiangqiGame:
         return piece, m
     
 class AI:
-    Depth = 3
+    Depth = 5
     strength = {Piece.King:9000, Piece.Advisor: 2, Piece.Elephant:3, 
                 Piece.Horse:4.5, Piece.Cannon:5, Piece.Rook:9}
     def __init__(self, pos, color):
@@ -382,37 +382,70 @@ class AI:
         self.color = color
 
     def thinkMove(self, color):
-        tree = SearchTree(self.position, color, None)
-        tree.build(self.Depth)
-        tree.minimax(color)
+        self.tree = SearchTree(None)
+        self.search(self.position, self.tree, self.Depth, color, -1000000, 1000000, color)
+        #tree.minimax(color)
         #tree.printMoves()
         #tree.printPaths()
-        return tree.selectMax(color)
+        return self.tree.selectMax(color)
+    
+    def search(self, pos, tree, depth, color, a, b, player):
+        if depth == 0:
+            tree.value = AI.evaluate(self.position)
+            return tree.value
+        elif depth >= 1:
+            moves = pos.getAllMoves(color)
+            #print("Position depth ", depth, " children: ", len(self.children), " alphabeta: ", a, b)
+            i = 0
+            if color == player:
+                for m in moves:
+                    i += 1
+                    if depth >= 7:
+                        print(depth, "child ", i, " of ", len(moves))
+                    newtree = SearchTree(m)
+                    tree.children.append(newtree)
+                    t = pos._getNewBoard(m.src, m.dst)    
+                    a = max(self.search(t, newtree, depth - 1, color, a, b, -player), a)
+                    if b <= a:
+                        #print("breaking ", i)
+                        break
+                tree.value = a
+                return a
+            else:
+                for m in moves:
+                    i += 1
+                    if depth >= 7:
+                        print(depth, "child ", i, " of ", len(moves))
+                    newtree = SearchTree(m)
+                    tree.children.append(newtree)
+                    t = pos._getNewBoard(m.src, m.dst) 
+                    b = min(self.search(t, newtree, depth - 1, color, a, b, -player), b)
+                    if b <= a:
+                        #print("breaking ", i)
+                        break
+                tree.value = b
+                return b
         
     @staticmethod
     def evaluate(pos):
         val = 0
-        for i in range(10):
-            for j in range(9):
-                piece = pos.board[i][j]
-                if piece != Piece.Empty:
-                    apiece = abs(piece)
-                    color = piece / apiece
-                    if apiece != Piece.Pawn:
-                        val += AI.strength[apiece] * color
-                    else:
-                        p = Position(j + 1, i + 1)
-                        if p.onSide(color):
-                            val += 1 * color
-                        else:
-                            val += 2.5 * color
+        for k in pos.pieces.keys():
+            piece = pos.pieces[k]
+            apiece = abs(piece)
+            color = Color.Red if piece > 0 else Color.Black
+            if apiece != Piece.Pawn:
+                val += AI.strength[apiece] * color
+            else:
+                p = Position(k[1] + 1, k[0] + 1)
+                if p.onSide(color):
+                    val += 1 * color
+                else:
+                    val += 2.5 * color
         return val
 
 class SearchTree:                
-    def __init__(self, pos, color, move):
+    def __init__(self, move):
         self.children = []
-        self.position = pos
-        self.color = color
         self.move = move
         self.value = 0
     def printTree(self):
@@ -429,32 +462,7 @@ class SearchTree:
         print(res, self.value)
         for c in self.children:
             c.printPaths(res)
-    def build(self, depth):
-        moves = self.position.getAllMoves(self.color)
-        for m in moves:
-            newb = self.position._getNewBoard(m.src, m.dst)
-            self.children.append(SearchTree(newb, -self.color, m))
-        if depth > 1:
-            i = 0
-            for t in self.children:
-                i += 1
-                t.build(depth - 1)
-                if depth > 2:
-                    print(depth, i, len(self.children))
-    def minimax(self, color):
-        if len(self.children) == 0:
-            self.value = AI.evaluate(self.position)
-            #print(self.move, self.value)
-            return
-        for c in self.children:
-            c.minimax(color)
-        vals = [c.value * color for c in self.children]
-        if self.color == color:
-            self.value = max(vals) * color
-            #print("max", self.value, vals)
-        else:
-            self.value = min(vals) * color
-            #print("min", self.value, vals)
+
     def selectMax(self, color):
         v = self.children[0].value * color
         move = self.children[0].move
