@@ -109,7 +109,7 @@ class Position:
                 return Position(self.x, self.y + 1)
         
 class Board:
-    def __init__(self):
+    def __init__(self, zero=False):
         self.board = [
                       [5, 4, 3, 2, 1, 2, 3, 4, 5],
                       [0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -121,23 +121,29 @@ class Board:
                       [0, -6, 0, 0, 0, 0, 0, -6, 0],
                       [0, 0, 0, 0, 0, 0, 0, 0, 0],
                       [-5, -4, -3, -2, -1, -2, -3, -4, -5]]
+        '''self.board = [
+                      [0, 0, 0, 0, 1, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 7, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                      [0, 0, 0, 0, -7, 0, 0, 0, 0],
+                      [0, 0, 0, 0, -5, 0, 0, 0, 0],
+                      [0, 0, 0, 0, 0, -5, 0, 0, 0],
+                      [0, 0, 0, 0, -1, 0, 0, 0, 0]]'''
+        if zero:
+            return
         self.pieces = {}
         for i in range(10):
             for j in range(9):
                 p = self.board[i][j]
                 if p != Piece.Empty:
                     self.pieces[(i, j)] = p
-        '''self.board = [
-                      [0, 0, 0, 0, 1, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 6, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 7, 0, 7, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, -7, 0, -7, 0, 0],
-                      [0, 0, 0, 0, 0, 0, 0, -6, 0],
-                      [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                      [0, 0, 0, 0, -1, 0, 0, 0, 0]]'''
+                    if p == Piece.King:
+                        self.redking = Position(j + 1, i + 1)
+                    elif p == -Piece.King:
+                        self.blackking = Position(j + 1, i + 1)
 
     def __str__(self):
         res = ""
@@ -230,11 +236,19 @@ class Board:
     
     def movePiece(self, src, dst):
         p = self.getPiece(src)
+        if self.board[dst.y-1][dst.x-1] == Piece.King:
+            self.redking = None
+        elif self.board[dst.y-1][dst.x-1] == -Piece.King:
+            self.blackking = None
         self.board[dst.y-1][dst.x-1] = p
         self.board[src.y-1][src.x-1] = Piece.Empty
         del self.pieces[(src.y-1, src.x-1)]
         pos = (dst.y-1, dst.x-1)
         self.pieces[pos] = p
+        if p == Piece.King:
+            self.redking = dst
+        elif p == -Piece.King:
+            self.blackking = dst
         
     def printMove(self, move):
         print(Piece.toString(abs(self.getPiece(move.src))) + str(move.src) + "-" + str(move.dst))
@@ -299,41 +313,41 @@ class Board:
         return res
 
     def _getNewBoard(self, src, dst):
-        newb = Board()
+        newb = Board(True)
         for i in range(10):
             for j in range(9):
                 newb.board[i][j] = self.board[i][j]
+        newb.pieces = {}
         for k in self.pieces.keys():
             newb.pieces[k] = self.pieces[k]
+        newb.redking = self.redking
+        newb.blackking = self.blackking
         newb.movePiece(src, dst)
         return newb
     
     def isCheck(self, color):
         kingpos = None
         otherkingpos = None
-        for i in range(10):
-            for j in range(9):
-                if self.board[i][j] == Piece.King * -color:
-                    kingpos = Position(j + 1, i + 1)
-                elif self.board[i][j] == Piece.King * color:
-                    otherkingpos = Position(j + 1, i + 1)
+        if color == Color.Red:
+            kingpos = self.redking
+            otherkingpos = self.blackking
+        else:
+            kingpos = self.blackking
+            otherkingpos = self.redking
         for m in self.getAllMoves(color):
-            if self.getPiece(m.src) * color > 0 and m.dst.isEqual(kingpos):
+            if self.getPiece(m.src) * color > 0 and m.dst.isEqual(otherkingpos):
                 return True
         if kingpos.sameColumn(otherkingpos) and self.piecesBetween(kingpos, otherkingpos) == 0:
             return True
         return False 
     
     def isCheckmate(self, color):
-        if self.isCheck(color):
-            for m in self.getAllMoves(-color):
-                newb = self._getNewBoard(m.src, m.dst)
-                if not newb.isCheck(color):
-                    print("Protect with ", m)
-                    return False
-            return True
-        else:
-            return False
+        for m in self.getAllMoves(-color):
+            newb = self._getNewBoard(m.src, m.dst)
+            if not newb.isCheck(color):
+                #print("Protect with ", m)
+                return False
+        return True
         
 class Move:
     def __init__(self, color, src, dst):
@@ -374,80 +388,130 @@ class XiangqiGame:
         return piece, m
     
 class AI:
-    Depth = 5
+    Depth = 2
     strength = {Piece.King:9000, Piece.Advisor: 2, Piece.Elephant:3, 
                 Piece.Horse:4.5, Piece.Cannon:5, Piece.Rook:9}
+    maxmoves = {Piece.King:4, Piece.Advisor: 4, Piece.Elephant:4, 
+                Piece.Horse:8, Piece.Cannon:17, Piece.Rook:17, Piece.Pawn:3}
     def __init__(self, pos, color):
         self.position = pos
         self.color = color
 
     def thinkMove(self, color):
         self.tree = SearchTree(None)
-        self.search(self.position, self.tree, self.Depth, color, -1000000, 1000000, color)
-        #tree.minimax(color)
-        #tree.printMoves()
-        #tree.printPaths()
+        # Beedlowcode for black and red
+        self.search(self.position, self.tree, self.Depth, color, -1000000, 1000000, color, 1)
+        #self.quiescence(self.position, self.tree, 5, color, color)
+        self.tree.printPaths()
         return self.tree.selectMax(color)
-    
-    def search(self, pos, tree, depth, color, a, b, player):
+     
+    def search(self, pos, tree, depth, color, a, b, player, quiescence):
         if depth == 0:
-            tree.value = AI.evaluate(self.position)
+            tree.value = AI.evaluate(pos)
+            if (abs(tree.value - tree.parent.value) > 4.0) and quiescence:
+                tree.value = self.search(pos, tree, 2, color, a, b, -player, quiescence-1)
             return tree.value
         elif depth >= 1:
-            moves = pos.getAllMoves(color)
-            #print("Position depth ", depth, " children: ", len(self.children), " alphabeta: ", a, b)
+            moves = pos.getAllMoves(player)
+            #print("Position depth ", depth, " children: ", len(moves), " alphabeta: ", a, b)
             i = 0
             if color == player:
                 for m in moves:
                     i += 1
-                    if depth >= 7:
-                        print(depth, "child ", i, " of ", len(moves))
+                    if depth >= 2:
+                        print(depth, quiescence, "child ", i, " of ", len(moves), m)
                     newtree = SearchTree(m)
-                    tree.children.append(newtree)
-                    t = pos._getNewBoard(m.src, m.dst)    
-                    a = max(self.search(t, newtree, depth - 1, color, a, b, -player), a)
-                    if b <= a:
-                        #print("breaking ", i)
+                    tree.addChild(newtree)
+                    t = pos._getNewBoard(m.src, m.dst)
+                    if color == Color.Red:  
+                        a = max(self.search(t, newtree, depth - 1, color, a, b, -player, quiescence), a)
+                        test = b <= a
+                    else:
+                        if a == -1000000:
+                            a = -a
+                        if b == 1000000:
+                            b = -b
+                        a = min(self.search(t, newtree, depth - 1, color, a, b, -player, quiescence), a)
+                        test = b >= a
+                    if test:
+                        #print("breaking ", depth, i, b, a)
                         break
+                #print(m, depth, a)
                 tree.value = a
                 return a
             else:
                 for m in moves:
                     i += 1
                     if depth >= 7:
-                        print(depth, "child ", i, " of ", len(moves))
+                        print(depth, quiescence, "child ", i, " of ", len(moves))
                     newtree = SearchTree(m)
-                    tree.children.append(newtree)
-                    t = pos._getNewBoard(m.src, m.dst) 
-                    b = min(self.search(t, newtree, depth - 1, color, a, b, -player), b)
-                    if b <= a:
-                        #print("breaking ", i)
+                    tree.addChild(newtree)
+                    t = pos._getNewBoard(m.src, m.dst)
+                    if color == Color.Red:
+                        b = min(self.search(t, newtree, depth - 1, color, a, b, -player, quiescence), b)
+                        test = b <= a
+                    else:
+                        if a == -1000000:
+                            a = -a
+                        if b == 1000000:
+                            b = -b
+                        b = max(self.search(t, newtree, depth - 1, color, a, b, -player, quiescence), b)
+                        test = b >= a
+                    if test:
+                        #print("breaking2 ", i, b, a)
                         break
                 tree.value = b
                 return b
         
     @staticmethod
     def evaluate(pos):
-        val = 0
+        total = 0
+        #movesRed = pos.getAllMoves(Color.Red)
+        #movesBlack = pos.getAllMoves(Color.Black)
+        
+        if pos.redking == None:
+            return -10000
+        if pos.blackking == None:
+            return 10000
+        #print("==========================")
+        #print(pos)
         for k in pos.pieces.keys():
             piece = pos.pieces[k]
             apiece = abs(piece)
             color = Color.Red if piece > 0 else Color.Black
+            p = Position(k[1] + 1, k[0] + 1)
             if apiece != Piece.Pawn:
-                val += AI.strength[apiece] * color
+                val = AI.strength[apiece] * color
             else:
-                p = Position(k[1] + 1, k[0] + 1)
                 if p.onSide(color):
-                    val += 1 * color
+                    val = 1 * color
                 else:
-                    val += 2.5 * color
-        return val
+                    val = 2.5 * color
+            if apiece > Piece.Elephant:
+                '''if color == Color.Red:
+                    possible = len([m for m in movesRed if m.src.x == p.x and m.src.y == p.y])
+                else:
+                    possible = len([m for m in movesBlack if m.src.x == p.x and m.src.y == p.y])
+                val *= 1 + 0.25 * possible / AI.maxmoves[apiece]'''
+
+                if color == Color.Red:
+                    dist = pos.blackking.distance(p)
+                else:
+                    dist = pos.redking.distance(p)
+                val *=  1 + 0.25 * (18.0 - dist) / 9.0
+            total += val
+            #print(apiece, val, possible, possible / AI.maxmoves[apiece], dist, (18.0 - dist)  / 9.0)
+        #print(pos, total)
+        return total
 
 class SearchTree:                
     def __init__(self, move):
         self.children = []
         self.move = move
         self.value = 0
+    def addChild(self, c):
+        self.children.append(c)
+        c.parent = self
     def printTree(self):
         print(self.position)
         for c in self.children:
@@ -464,22 +528,34 @@ class SearchTree:
             c.printPaths(res)
 
     def selectMax(self, color):
-        v = self.children[0].value * color
-        move = self.children[0].move
-        for c in self.children[1:]:
-            if c.value * color > v:
-                move = c.move
-        return move
+        if color == Color.Red:
+            v = self.children[0].value
+            move = self.children[0].move
+            for c in self.children[1:]:
+                if c.value > v:
+                    move = c.move
+                    v = c.value
+            return move
+        else:
+            v = self.children[0].value
+            move = self.children[0].move
+            print(move, v)
+            for c in self.children[1:]:
+                if c.value < v:
+                    move = c.move
+                    v = c.value
+                print(c.move, c.value)
+            return move
 
 b = Board()
 g = XiangqiGame()
 g.addPosition(b)
 color = Color.Red
 players = {Color.Red:"Human", Color.Black:"Computer"}
-comp = AI(b, 1)
-move = comp.thinkMove(1)
+'''comp = AI(b, 1)
+move = comp.thinkMove(-1)
 print(move)
-exit(0)
+exit(0)'''
 while True:
     try:
         if players[color] == "Human":
@@ -506,7 +582,7 @@ while True:
                 print("Repetition: draw")
                 break
         if b.isCheckmate(color):
-            print("Checkmate!")
+            print(Color.toString(color) + " wins!")
             break
         color = -color
         print(b)
