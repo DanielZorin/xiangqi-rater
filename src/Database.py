@@ -4,11 +4,162 @@ Created on 28.09.2011
 
 @author: juan
 '''
-from Tournament import Tournament
-from Game import Game
-from Player import Player
 import xml.dom.minidom, math
 
+class Player(object):
+    name = ""
+    
+    # default rating
+    rating = 1600
+    
+    foreign = False
+
+    def __init__(self, name):
+        '''
+        Constructor
+        '''
+        self.name = name
+        
+    def __str__(self):
+        return self.name + " " + str(self.rating)
+    
+    def shortName(self):
+        return self.name[self.name.find(" ") + 1:] + " " + self.name[0]
+
+class Game:
+    def __init__(self, p1, p2, result, tour=1):
+        self.red = p1
+        self.black = p2
+        self.result = result
+        self.tour = tour
+        self.tournament = None
+    
+    def setTournament(self, t):
+        self.tournament = t
+
+    def winner(self):
+        if self.result == 1:
+            return self.red
+        elif self.result == 0:
+            return self.black
+        else:
+            return None
+        
+    def __str__(self):
+        res = "1-0" if self.result == 1 else "0.5-0.5" if self.result == 0.5 else "0-1"
+        return self.red.name + " vs " + self.black.name + " " + res + " // " + self.tournament.name
+
+class Tournament(object):
+    rated = True
+
+    def __init__(self, games, date, name=""):
+        '''
+        Constructor
+        '''
+        self.games = games
+        self.date = date
+        tmp = date.split(".")
+        self.year = int(tmp[2])
+        self.name = name
+
+    def FindGames(self, p1=None, p2=None):
+        return [game for game in self.games if 
+                (p2 == None) and (game.red == p1 or game.black == p1) or
+                ((game.red == p1 or game.red == p2) and (game.black == p1 or game.black == p2))]
+
+    # TODO: fix
+    def cmp2key(self, mycmp):
+        'Convert a cmp= function into a key= function'
+        class K(object):
+            def __init__(self, obj, *args):
+                self.obj = obj
+            def __lt__(self, other):
+                return mycmp(self.obj, other.obj) < 0
+            def __gt__(self, other):
+                return mycmp(self.obj, other.obj) > 0
+            def __eq__(self, other):
+                return mycmp(self.obj, other.obj) == 0
+            def __le__(self, other):
+                return mycmp(self.obj, other.obj) <= 0
+            def __ge__(self, other):
+                return mycmp(self.obj, other.obj) >= 0
+            def __ne__(self, other):
+                return mycmp(self.obj, other.obj) != 0
+        return K
+        
+    def findPlaces(self):
+        def compareResults(r1, r2):
+            if r1[1] > r2[1]:
+                return -1
+            elif r1[1] < r2[1]:
+                return 1
+            else:
+                if r1[2] > r2[2]:
+                    return -1
+                elif r1[2] < r2[2]:
+                    return 1
+                else:
+                    #Buchholz coefficients
+                    g1 = self.FindGames(r1[0])
+                    g2 = self.FindGames(r2[0])
+                    buch1 = 0
+                    buch2 = 0
+                    
+                    # weighted coefficients
+                    buchw1 = 0
+                    buchw2 = 0
+                    for g in g1:
+                        other = g.red if g.red != r1[0] else g.black
+                        if other.name != "!bye":
+                            buch1 += self.places[other][0]
+                            if g.winner() == r1[0]:
+                                buchw1 += self.places[other][0]
+                            if g.result == 0.5:
+                                buchw1 += self.places[other][0] / 2
+                    for g in g2:
+                        other = g.red if g.red != r2[0] else g.black
+                        if other.name != "!bye":
+                            buch2 += self.places[other][0]
+                            if g.winner() == r2[0]:
+                                buchw2 += self.places[other][0]
+                            if g.result == 0.5:
+                                buchw2 += self.places[other][0] / 2
+                            
+                    if buch1 > buch2:
+                        return -1
+                    elif buch1 < buch2:
+                        return 1
+                    else:
+                        return -1 if buchw1 > buchw2 else 1
+        self.places = {}
+        for g in self.games:
+            if not g.red in self.places.keys():
+                self.places[g.red] = [0, 0]
+            if not g.black in self.places.keys():
+                self.places[g.black] = [0, 0]
+            if g.result == 1:
+                self.places[g.red][0] += 1
+                if g.black.name != "!bye":
+                    self.places[g.red][1] += 1
+            elif g.result == 0:
+                self.places[g.black][0] += 1
+                self.places[g.black][1] += 1
+            else:
+                self.places[g.red][0] += 0.5
+                self.places[g.black][0] += 0.5
+                self.places[g.red][1] += 0.5
+                self.places[g.black][1] += 0.5
+        results = []
+        for p in self.places.keys():
+            results.append([p, self.places[p][0], self.places[p][1]])
+        results = sorted(results, key=self.cmp2key(compareResults))
+        self.places = []
+        i = 1
+        for r in results:
+            #print(self.name, r[0].name, r[1], r[2])
+            self.places.append([i, r[0], r[1], r[2]])
+            i += 1
+		
 class Database(object):
     
     k = 15
@@ -45,6 +196,7 @@ class Database(object):
                         p.rating = rating
                         p.foreign = True
                         self.players.append(p)
+                for tournament in node.childNodes:
                     if tournament.nodeName == "tournament":
                         games = []
                         for game in tournament.childNodes:
@@ -200,7 +352,7 @@ class Database(object):
                 realScore = currentPlayers[p][0]
                 dif = realScore - expScore
                 new = p.rating + self.k * dif
-                if p.name == "Даниил Зорин":
+                if p.name == "Дмитрий Гладышев":
                     print(year, expScore, realScore, "/", len(currentPlayers[p][1]), p.rating, new, new-p.rating)
                 #if not p.foreign:
                 #    print(p.name, year, expScore, realScore, "/", len(currentPlayers[p][1]), p.rating, new, new-p.rating)
