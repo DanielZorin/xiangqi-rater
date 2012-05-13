@@ -1,0 +1,9 @@
+<?xml version="1.0" ?>
+<xiangqi>
+<tournament date="25.09.2011" name="Rating Tournament 25/09/2011">
+<game red="Даниил Зорин" black="Александр Дёмин" result="0.5" tour="1"/>
+<game red="Дмитрий Гладышев" black="Дмитрий Румянцев" result="0" tour="1"/>
+<game red="Дмитрий Румянцев" black="Даниил Зорин" result="1" tour="2"/>
+<game red="Александр Дёмин" black="Дмитрий Гладышев" result="0" tour="2"/>
+</tournament>
+</xiangqi>
