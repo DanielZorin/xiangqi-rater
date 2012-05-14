@@ -263,17 +263,38 @@ class Database(object):
         return (p1.name, p2.name, win, draw, lose)
 
     def PrintStats(self, cutoff):
-        tmp = sorted(self.players, key=lambda x: -x.rating)
+        tmp = sorted(self.players, key=lambda x: -len(self.FindGames(x)))
         tmp = [p for p in tmp if not p.foreign]
         for p1 in tmp[:cutoff]:
             todo = []
             for p2 in tmp[:cutoff]:
                 if p1 != p2:
                     res = self.PrintPairStats(p1, p2)
-                    todo.append(res)
+                    todo.append(res)          
+            win = 0
+            lose = 0
+            draw = 0
+            for g in self.FindGames(p1):
+                if g.result == 0.5:
+                    draw += 1
+                if g.result == 1:
+                    if g.red == p1:
+                        win += 1
+                    else:
+                        lose += 1
+                if g.result == 0:
+                    if g.black == p1:
+                        win += 1
+                    else:
+                        lose += 1
+            for t in todo:
+                win -= t[2]
+                draw -= t[3]
+                lose -= t[4]
             st = p1.shortName()
             for t in todo:
                 st += "\t+%d =%d -%d" % (t[2], t[3], t[4])
+            st += "\t+%d =%d -%d" % (win, draw, lose)
             print(st)
                 
     
@@ -372,6 +393,8 @@ class Database(object):
         for p in self.players:
             self.ratings[p] = []
         for t in self.tournaments:
+            if not t.rated:
+                continue
             currentPlayers = {}
             for g in t.games:
                 if g.black.name == "!bye":
@@ -410,12 +433,20 @@ class Database(object):
 
 db = Database()
 db.loadFromXml("tournaments.xml")
-'''for t in db.tournaments:
+wins = {}
+for t in db.tournaments:
     t.findPlaces()
+    if t.name.find("Rating") != -1:
+        if t.places[0][1] in wins:
+            wins[t.places[0][1]] += 1
+        else:
+            wins[t.places[0][1]] = 1
     for p in t.places:
         if p[1].name == "Даниил Зорин":
             pass
-            print(t.name, p[0], p[2])'''
+            #print(t.name, p[0], p[2])
+for w in wins.keys():
+    print(w, wins[w])
 db.ComputeRating()
 #db.CorrectRating()
 db.CorrectRatingMinus()
@@ -426,8 +457,7 @@ mm = 1
 pos = 0
 for p in tmp:
     print(p.name, int(p.rating + 0.5))
-cutoff = 5
-print (len([g for t in db.tournaments for g in t.games]))
+cutoff = 9
 '''for p in tmp:
     st = p.name[p.name.find(" ") + 1:] + " " + p.name[0]
     for r in db.ratings[p]:
